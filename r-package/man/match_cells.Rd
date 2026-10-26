@@ -13,10 +13,12 @@ match_cells(loom_cells, object_cells)
 }
 \value{
 integer vector: for each object cell, the index of the loom cell
-(NA if absent).
+(NA if absent or ambiguous).
 }
 \description{
 velocyto names cells \code{sample:BARCODEx}, while Seurat / Cell Ranger use
-\code{BARCODE-1} (often with a sample prefix). Cells are first matched exactly,
-then by their nucleotide barcode, and finally by barcode plus sample label.
+\code{BARCODE-1}, often with a sample prefix added when merging samples
+(\code{s1_BARCODE-1}). Cells are matched exactly first, then by their nucleotide
+barcode; when the same barcode occurs in several samples, the remaining
+parts of the names (sample labels) decide. Matches are one-to-one.
 }

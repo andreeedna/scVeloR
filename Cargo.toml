@@ -1,6 +1,6 @@
 [workspace]
 members = ["velocore"]
-exclude = ["r-package/src/rust"]
+exclude = ["r-package/src/rust", "r-package/src/rust/velocore"]
 resolver = "2"
 
 [profile.release]

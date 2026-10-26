@@ -11,7 +11,7 @@ name = "scvelo2"
 [dependencies]
 extendr-api = "0.9"
 rayon = "1.10"
-velocore = { path = "../../../velocore" }
+velocore = { path = "velocore" }
 
 [profile.release]
 opt-level = 3

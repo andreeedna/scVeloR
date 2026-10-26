@@ -91,38 +91,53 @@ read_one_loom <- function(file, layers, block_size) {
 #' Match velocyto cell IDs to the cell names of an object
 #'
 #' velocyto names cells `sample:BARCODEx`, while Seurat / Cell Ranger use
-#' `BARCODE-1` (often with a sample prefix). Cells are first matched exactly,
-#' then by their nucleotide barcode, and finally by barcode plus sample label.
+#' `BARCODE-1`, often with a sample prefix added when merging samples
+#' (`s1_BARCODE-1`). Cells are matched exactly first, then by their nucleotide
+#' barcode; when the same barcode occurs in several samples, the remaining
+#' parts of the names (sample labels) decide. Matches are one-to-one.
 #'
 #' @param loom_cells cell IDs from the loom file(s).
 #' @param object_cells cell names of the Seurat / SCE object.
 #' @return integer vector: for each object cell, the index of the loom cell
-#'   (NA if absent).
+#'   (NA if absent or ambiguous).
 #' @export
 match_cells <- function(loom_cells, object_cells) {
   m <- match(object_cells, loom_cells)
   if (!anyNA(m)) return(m)
+  pat <- "[ACGTN]{10,}"
   core <- function(x) {
-    bc <- regmatches(x, regexpr("[ACGTN]{8,}", x))
     out <- rep(NA_character_, length(x))
-    out[grepl("[ACGTN]{8,}", x)] <- bc
+    hit <- regexpr(pat, x)
+    out[hit > 0] <- regmatches(x, hit)
     out
+  }
+  # sample labels: the name without the barcode, split into tokens; tokens
+  # shared by every name (e.g. the GEM suffix "1", the trailing "x") carry no
+  # information and are dropped
+  tokens <- function(x) {
+    tk <- strsplit(sub(pat, " ", x), "[^A-Za-z0-9]+")
+    tk <- lapply(tk, function(t) unique(t[nzchar(t)]))
+    common <- Reduce(intersect, tk)
+    lapply(tk, setdiff, common)
   }
   lc <- core(loom_cells)
   oc <- core(object_cells)
-  if (!anyDuplicated(stats::na.omit(lc)) && !anyDuplicated(stats::na.omit(oc))) {
-    m2 <- match(oc, lc)
-    m[is.na(m)] <- m2[is.na(m)]
-    return(m)
+  lt <- tokens(loom_cells)
+  ot <- tokens(object_cells)
+  by_bc <- split(seq_along(lc), lc)
+  todo <- which(is.na(m) & !is.na(oc))
+  for (i in todo) {
+    cand <- by_bc[[oc[i]]]
+    if (is.null(cand)) next
+    if (length(cand) > 1 || sum(oc == oc[i], na.rm = TRUE) > 1) {
+      score <- vapply(cand, function(j) length(intersect(lt[[j]], ot[[i]])), numeric(1))
+      best <- cand[score == max(score)]
+      cand <- if (max(score) > 0 && length(best) == 1) best else integer(0)
+    }
+    if (length(cand) == 1) m[i] <- cand
   }
-  # barcode collisions across samples: also require the sample label to match
-  sample_of <- function(x) sub("[:_-]?[ACGTN]{8,}.*$", "", x)
-  ls <- sample_of(loom_cells)
-  os <- sample_of(object_cells)
-  key_l <- paste(ls, lc)
-  key_o <- paste(os, oc)
-  m2 <- match(key_o, key_l)
-  m[is.na(m)] <- m2[is.na(m)]
+  dup <- duplicated(m, incomparables = NA) | duplicated(m, fromLast = TRUE, incomparables = NA)
+  m[dup] <- NA_integer_
   m
 }
 
@@ -131,13 +146,21 @@ match_cells <- function(loom_cells, object_cells) {
 #' @param object a Seurat or SingleCellExperiment object (or NULL to build a
 #'   stand-alone velo object).
 #' @param loom output of [read_loom()] or path(s) to loom files.
+#'   Several samples: `read_loom(c("a.loom", "b.loom"), sample_names = c("a", "b"))`
+#'   with the same prefixes used in the object (e.g. Seurat's `add.cell.ids`).
 #' @param min_match minimum fraction of object cells that must be found in the
 #'   loom file(s).
+#' @param rename optional function mapping loom cell IDs to the object's cell
+#'   names, for naming schemes that cannot be matched automatically.
 #' @return the object with a `velo` object attached (cells not found in the
 #'   loom are excluded from velocity analysis).
 #' @export
-add_velocity_data <- function(object = NULL, loom, min_match = 0.5) {
+add_velocity_data <- function(object = NULL, loom, min_match = 0.5, rename = NULL) {
   if (is.character(loom)) loom <- read_loom(loom)
+  if (!is.null(rename)) {
+    new <- rename(colnames(loom$spliced))
+    for (l in c("spliced", "unspliced", "ambiguous")) if (!is.null(loom[[l]])) colnames(loom[[l]]) <- new
+  }
   if (is.null(object)) {
     v <- new_velo(loom$spliced, loom$unspliced, loom$ambiguous)
     v$obs <- data.frame(row.names = v$cells)
@@ -148,7 +171,8 @@ add_velocity_data <- function(object = NULL, loom, min_match = 0.5) {
   frac <- mean(!is.na(m))
   if (frac < min_match) {
     stop(sprintf(paste0("Only %.1f%% of the cells were found in the loom file(s). ",
-                        "Check the cell names (e.g. %s vs %s) or set `sample_names` in read_loom()."),
+                        "Check the cell names (e.g. %s vs %s): for several samples use the same ",
+                        "prefixes in read_loom(sample_names = ...), or pass `rename`."),
                  100 * frac, obj_cells[1], colnames(loom$spliced)[1]), call. = FALSE)
   }
   if (frac < 1) message(sprintf("%d of %d cells not found in the loom file(s); they are left out of velocity analysis.",

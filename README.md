@@ -35,7 +35,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # from a clone of this repository
 install.packages(c("Matrix", "ggplot2", "RSpectra", "irlba", "patchwork", "uwot"))
 BiocManager::install("rhdf5")
-devtools::install("r-package")
+devtools::install("r-package", upgrade = FALSE)
 ```
 
 ## Quick start with Seurat
@@ -128,6 +128,13 @@ in `validation/reference_scvelo.py`.
 | neighbours + moments | 4.9 s | 0.2 s |
 | velocity graph | 4.2 s | 0.4 s |
 | recover dynamics (1038 genes) | 88 s (8 jobs) | 15 s |
+
+## Known issues
+
+* On simulated data (`simulate_splicing()`), `latent_time()` correlates only
+  ~0.73 (Spearman) with the true time, while the median fitted gene time
+  reaches 0.90: root cells are detected mid-trajectory. On the pancreas data
+  latent time agrees with scVelo (Pearson 0.989). Under investigation.
 
 ## Layout
 

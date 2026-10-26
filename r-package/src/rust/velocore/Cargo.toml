@@ -1,0 +1,11 @@
+[package]
+name = "velocore"
+version = "0.1.0"
+edition = "2021"
+description = "Fast RNA velocity core: moments, steady-state/stochastic/dynamical models, velocity graph, embedding projection and streamlines."
+license = "BSD-3-Clause"
+
+[dependencies]
+rayon = "1.10"
+libm = "0.2"
+
