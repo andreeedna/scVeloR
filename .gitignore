@@ -1,0 +1,12 @@
+/reference/
+target/
+*.o
+*.so
+*.a
+.Rproj.user
+.Rhistory
+r-package/src/rust/target/
+r-package/src/rust/vendor/
+validation/data/
+validation/out/
+__pycache__/

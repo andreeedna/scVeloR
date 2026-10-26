@@ -1,0 +1,38 @@
+Package: scVelo2
+Type: Package
+Title: Fast RNA Velocity Analysis for Seurat and SingleCellExperiment
+Version: 0.1.0
+Authors@R: person("scVelo2", "authors", role = c("aut", "cre"), email = "tsneland@gmail.com")
+Description: RNA velocity analysis of single-cell data in R, powered by a
+    multi-threaded Rust core. Implements the steady-state, stochastic and
+    dynamical models of splicing kinetics, velocity graphs, embedding
+    projections, streamlines, terminal states, velocity pseudotime and latent
+    time, following the methods of scVelo (Bergen et al., 2020), with ggplot2
+    figures. Works directly on 'Seurat' and 'SingleCellExperiment' objects and
+    reads velocyto '.loom' files.
+License: BSD_3_clause + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+SystemRequirements: Cargo (Rust's package manager), rustc >= 1.75
+Depends: R (>= 4.2)
+Imports:
+    Matrix,
+    methods,
+    stats,
+    grid,
+    ggplot2 (>= 3.4.0),
+    rhdf5,
+    RSpectra,
+    irlba
+Suggests:
+    Seurat,
+    SeuratObject,
+    SingleCellExperiment,
+    SummarizedExperiment,
+    S4Vectors,
+    uwot,
+    patchwork,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/rextendr/version: 0.3.1
+Config/roxygen2/version: 8.1.1
