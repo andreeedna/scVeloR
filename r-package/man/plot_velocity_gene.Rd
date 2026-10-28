@@ -9,7 +9,8 @@ plot_velocity_gene(
   gene,
   reduction = "umap",
   color_by = NULL,
-  base_size = 11
+  base_size = 11,
+  sample = NULL
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ plot_velocity_gene(
 clusters if found).}
 
 \item{base_size}{base font size.}
+
+\item{sample}{sample to show when the analysis is split by sample.}
 }
 \value{
 a patchwork object (or a list of ggplots if patchwork is missing).

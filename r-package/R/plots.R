@@ -75,7 +75,7 @@ guess_color_by <- function(object, v) {
 }
 
 cell_layer <- function(p, df, color_by, point_size, point_alpha, palette, colors_continuous,
-                       legend, base_size) {
+                       legend, base_size, by = NULL) {
   if (is.null(color_by) || is.null(df$color)) {
     return(p + ggplot2::geom_point(data = df, ggplot2::aes(x = .data$x, y = .data$y),
                                    colour = "grey70", size = point_size, alpha = point_alpha, stroke = 0))
@@ -88,9 +88,10 @@ cell_layer <- function(p, df, color_by, point_size, point_alpha, palette, colors
                                  size = point_size, alpha = point_alpha, stroke = 0) +
       ggplot2::scale_colour_manual(values = pal, name = color_by, na.value = "grey85")
     if (identical(legend, "on data")) {
-      cent <- stats::aggregate(df[, c("x", "y")], list(color = df$color), stats::median)
+      keys <- c(list(color = df$color), lapply(stats::setNames(by, by), function(b) df[[b]]))
+      cent <- stats::aggregate(df[, c("x", "y")], keys, stats::median)
       p <- p + ggplot2::geom_label(data = cent, ggplot2::aes(x = .data$x, y = .data$y, label = .data$color),
-                                   fontface = "bold", size = base_size / 3.4, label.size = 0,
+                                   fontface = "bold", size = base_size / 3.4, linewidth = 0,
                                    fill = grDevices::adjustcolor("white", 0.65),
                                    label.padding = ggplot2::unit(0.12, "lines"), colour = "grey10") +
         ggplot2::guides(colour = "none")
@@ -150,45 +151,21 @@ ensure_embedding <- function(object, reduction) {
 #' @param legend `"on data"`, `"right"` or `"none"`.
 #' @param title plot title.
 #' @param base_size base font size.
+#' @param split_by cell metadata column to facet by (e.g. `"sample"`); the
+#'   flow is computed separately in each panel. Defaults to the column the
+#'   analysis was split by ([split_velocity()]), if any.
+#' @param ncol number of facet columns.
 #' @return a ggplot object.
 #' @export
 plot_velocity_stream <- function(object, reduction = "umap", color_by = NULL, density = 2, smooth = 0.5,
                                  min_mass = 1, cutoff_perc = 5, max_length = 4, linewidth = 1,
                                  line_color = "grey10", arrow_size = 1, point_size = NULL, point_alpha = 0.35,
                                  palette = NULL, continuous_palette = "viridis", legend = "on data",
-                                 title = NULL, base_size = 11) {
-  v <- ensure_embedding(object, reduction)
-  if (is.null(color_by)) color_by <- guess_color_by(object, v)
-  cf <- cells_frame(object, v, reduction, color_by)
-  df <- cf$df
-  ve <- v$velocity_embeddings[[reduction]][, 1:2, drop = FALSE]
-  n <- nrow(df)
-  grid <- rs_velocity_grid(as.double(t(as.matrix(df[, c("x", "y")]))), as.double(t(ve)), n, 1, smooth, 0L,
-                           as.double(min_mass), FALSE, TRUE, cutoff_perc)
-  nx <- length(grid$xs)
-  gv <- matrix(grid$velocity, ncol = 2, byrow = TRUE)
-  st <- rs_streamlines(grid$xs, grid$ys, gv[, 1], gv[, 2], density, density, 0.1, max_length, "both")
-  lengths <- sqrt(rowSums(gv^2))
-  lmax <- max(lengths, na.rm = TRUE)
-  lines <- data.frame(line = st$line, x = st$x, y = st$y,
-                      lw = linewidth * 2 * pmin(st$speed / lmax, 1) / ggplot2::.pt * 1.5)
-  arrows <- data.frame(x0 = st$arrow_x0, y0 = st$arrow_y0, x1 = st$arrow_x1, y1 = st$arrow_y1)
-  arrows <- arrows[(arrows$x1 - arrows$x0)^2 + (arrows$y1 - arrows$y0)^2 > 0, , drop = FALSE]
-  if (is.null(point_size)) point_size <- default_point_size(n)
-  p <- ggplot2::ggplot()
-  p <- cell_layer(p, df, color_by, point_size, point_alpha, palette, continuous_colors(continuous_palette),
-                  legend, base_size)
-  p <- p +
-    ggplot2::geom_path(data = lines, ggplot2::aes(x = .data$x, y = .data$y, group = .data$line, linewidth = .data$lw),
-                       colour = line_color, lineend = "round", linejoin = "round") +
-    ggplot2::geom_segment(data = arrows, ggplot2::aes(x = .data$x0, y = .data$y0, xend = .data$x1, yend = .data$y1),
-                          colour = line_color, linewidth = 0.3,
-                          arrow = grid::arrow(type = "closed", angle = 22, length = ggplot2::unit(0.075 * arrow_size, "inches"))) +
-    ggplot2::scale_linewidth_identity() +
-    ggplot2::coord_cartesian(expand = TRUE) +
-    ggplot2::labs(x = cf$labs[1], y = cf$labs[2], title = title %||% color_by) +
-    theme_velo(base_size)
-  p
+                                 title = NULL, base_size = 11, split_by = NULL, ncol = NULL) {
+  field_plot(object, "stream", reduction, color_by, split_by, ncol, point_size, point_alpha, palette,
+             continuous_palette, legend, title, base_size, line_color,
+             list(density = density, smooth = smooth, min_mass = min_mass, cutoff_perc = cutoff_perc,
+                  max_length = max_length, linewidth = linewidth, arrow_size = arrow_size))
 }
 
 #' Velocity arrows on a grid
@@ -202,70 +179,62 @@ plot_velocity_stream <- function(object, reduction = "umap", color_by = NULL, de
 plot_velocity_grid <- function(object, reduction = "umap", color_by = NULL, density = 1, smooth = 0.5,
                                min_mass = 1, arrow_length = NULL, arrow_size = 1, arrow_color = "grey10",
                                point_size = NULL, point_alpha = 0.35, palette = NULL,
-                               continuous_palette = "viridis", legend = "on data", title = NULL, base_size = 11) {
-  v <- ensure_embedding(object, reduction)
-  if (is.null(color_by)) color_by <- guess_color_by(object, v)
-  cf <- cells_frame(object, v, reduction, color_by)
-  df <- cf$df
-  ve <- v$velocity_embeddings[[reduction]][, 1:2, drop = FALSE]
-  n <- nrow(df)
-  grid <- rs_velocity_grid(as.double(t(as.matrix(df[, c("x", "y")]))), as.double(t(ve)), n, density, smooth, 0L,
-                           as.double(min_mass), TRUE, FALSE, 5)
-  pts <- matrix(grid$points, ncol = 2, byrow = TRUE)
-  vel <- matrix(grid$velocity, ncol = 2, byrow = TRUE)
-  if (is.null(arrow_length)) {
-    step <- mean(c(diff(grid$xs[1:2]), diff(grid$ys[1:2])))
-    arrow_length <- 0.95 * step / stats::quantile(sqrt(rowSums(vel^2)), 0.95, names = FALSE)
-  }
-  ar <- data.frame(x = pts[, 1], y = pts[, 2], xend = pts[, 1] + vel[, 1] * arrow_length,
-                   yend = pts[, 2] + vel[, 2] * arrow_length)
-  if (is.null(point_size)) point_size <- default_point_size(n)
-  p <- ggplot2::ggplot()
-  p <- cell_layer(p, df, color_by, point_size, point_alpha, palette, continuous_colors(continuous_palette),
-                  legend, base_size)
-  p + ggplot2::geom_segment(data = ar, ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend),
-                            colour = arrow_color, linewidth = 0.3, lineend = "round",
-                            arrow = grid::arrow(type = "closed", angle = 22, length = ggplot2::unit(0.045 * arrow_size, "inches"))) +
-    ggplot2::labs(x = cf$labs[1], y = cf$labs[2], title = title %||% color_by) +
-    theme_velo(base_size)
+                               continuous_palette = "viridis", legend = "on data", title = NULL, base_size = 11,
+                               split_by = NULL, ncol = NULL) {
+  field_plot(object, "grid", reduction, color_by, split_by, ncol, point_size, point_alpha, palette,
+             continuous_palette, legend, title, base_size, arrow_color,
+             list(density = density, smooth = smooth, min_mass = min_mass, arrow_length = arrow_length,
+                  arrow_size = arrow_size))
 }
 
 #' Velocity arrows for individual cells
 #'
 #' @inheritParams plot_velocity_stream
-#' @param n_arrows maximum number of cells with an arrow (random subset).
+#' @param n_arrows maximum number of cells with an arrow per panel (random subset).
 #' @param arrow_length arrow length multiplier; `NULL` scales the longest
 #'   arrows to about 4% of the embedding width.
-#' @param arrow_color arrow colour (`NULL`: same colour as the cell).
+#' @param arrow_color arrow colour.
 #' @return a ggplot object.
 #' @export
 plot_velocity_embedding <- function(object, reduction = "umap", color_by = NULL, n_arrows = 1500,
                                     arrow_length = NULL, arrow_size = 1, arrow_color = "grey15",
                                     point_size = NULL, point_alpha = 0.35, palette = NULL,
                                     continuous_palette = "viridis", legend = "on data", title = NULL,
-                                    base_size = 11) {
+                                    base_size = 11, split_by = NULL, ncol = NULL) {
+  field_plot(object, "arrows", reduction, color_by, split_by, ncol, point_size, point_alpha, palette,
+             continuous_palette, legend, title, base_size, arrow_color,
+             list(n_arrows = n_arrows, arrow_length = arrow_length, arrow_size = arrow_size))
+}
+
+# Shared body of the three embedding plots. With `split_by` (default: the
+# column the analysis was split by) the flow is computed per panel.
+field_plot <- function(object, type, reduction, color_by, split_by, ncol, point_size, point_alpha, palette,
+                       continuous_palette, legend, title, base_size, color, args) {
   v <- ensure_embedding(object, reduction)
   if (is.null(color_by)) color_by <- guess_color_by(object, v)
+  if (is.null(split_by)) split_by <- v$params$split_by
   cf <- cells_frame(object, v, reduction, color_by)
   df <- cf$df
-  ve <- v$velocity_embeddings[[reduction]][, 1:2, drop = FALSE]
-  set.seed(1)
-  idx <- if (nrow(df) > n_arrows) sort(sample(nrow(df), n_arrows)) else seq_len(nrow(df))
-  if (is.null(arrow_length)) {
-    width <- diff(range(df$x))
-    arrow_length <- 0.04 * width / stats::quantile(sqrt(rowSums(ve^2)), 0.95, names = FALSE, na.rm = TRUE)
+  vf <- velocity_frame(object, v, reduction)
+  df$vx <- vf$vx
+  df$vy <- vf$vy
+  by <- NULL
+  if (!is.null(split_by)) {
+    md <- cell_metadata(object, v)
+    if (!split_by %in% colnames(md)) stop("Unknown `split_by` column: ", split_by, call. = FALSE)
+    df$.split <- md[[split_by]]
+    df <- df[!is.na(df$.split), , drop = FALSE]
+    by <- ".split"
   }
-  ar <- data.frame(x = df$x[idx], y = df$y[idx], xend = df$x[idx] + ve[idx, 1] * arrow_length,
-                   yend = df$y[idx] + ve[idx, 2] * arrow_length)
-  if (is.null(point_size)) point_size <- default_point_size(nrow(df))
+  if (is.null(point_size)) point_size <- default_point_size(nrow(df) / max(1, length(unique(df$.split))))
   p <- ggplot2::ggplot()
   p <- cell_layer(p, df, color_by, point_size, point_alpha, palette, continuous_colors(continuous_palette),
-                  legend, base_size)
-  p + ggplot2::geom_segment(data = ar, ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend),
-                            colour = arrow_color, linewidth = 0.25,
-                            arrow = grid::arrow(type = "closed", angle = 25, length = ggplot2::unit(0.035 * arrow_size, "inches"))) +
+                  legend, base_size, by = by)
+  p <- p + velocity_field_layers(df, type, by, args, color) +
     ggplot2::labs(x = cf$labs[1], y = cf$labs[2], title = title %||% color_by) +
     theme_velo(base_size)
+  if (!is.null(by)) p <- p + ggplot2::facet_wrap(ggplot2::vars(.data$.split), ncol = ncol)
+  p
 }
 
 #' Cells on an embedding coloured by a variable
@@ -306,39 +275,37 @@ plot_cells <- function(object, color_by, reduction = "umap", point_size = NULL, 
 plot_phase <- function(object, genes, color_by = NULL, ncol = NULL, point_size = NULL, point_alpha = 0.6,
                        palette = NULL, continuous_palette = "viridis", base_size = 11) {
   v <- get_velo(object)
-  genes <- intersect(genes, v$genes)
-  if (!length(genes)) stop("None of the genes are in the velocity data.", call. = FALSE)
   if (is.null(color_by)) color_by <- guess_color_by(object, v)
   md <- cell_metadata(object, v)
-  col <- if (!is.null(color_by)) {
-    if (color_by %in% colnames(md)) md[[color_by]] else v$layers$Ms[color_by, ]
-  } else NULL
-  if (is.character(col) || is.logical(col)) col <- factor(col)
-  pts <- do.call(rbind, lapply(genes, function(g) {
-    data.frame(gene = g, s = v$layers$Ms[g, ], u = v$layers$Mu[g, ], color = if (is.null(col)) NA else col)
-  }))
-  pts$gene <- factor(pts$gene, levels = genes)
-  dyn <- identical(v$params$velocity$mode, "dynamical") && !is.null(v$var$fit_gamma)
-  lines <- do.call(rbind, lapply(genes, function(g) {
-    i <- match(g, v$genes)
-    gamma <- if (dyn) v$var$fit_gamma[i] / v$var$fit_beta[i] else v$var$velocity_gamma[i]
-    off <- if (dyn) 0 else v$var$velocity_offset[i] %||% 0
-    if (is.null(gamma) || is.na(gamma)) return(NULL)
-    smax <- max(v$layers$Ms[g, ])
-    data.frame(gene = g, s = c(0, smax), u = off + gamma * c(0, smax))
-  }))
-  curves <- NULL
-  if (!is.null(v$var$fit_alpha)) {
-    curves <- do.call(rbind, lapply(genes, function(g) {
-      i <- match(g, v$genes)
-      if (is.na(v$var$fit_alpha[i])) return(NULL)
-      tmax <- max(v$layers$fit_t[i, ], na.rm = TRUE)
-      tr <- rs_gene_trajectory(v$var$fit_alpha[i], v$var$fit_beta[i], v$var$fit_gamma[i], v$var$fit_t_[i],
-                               v$var$fit_scaling[i], tmax, 300L)
-      data.frame(gene = g, s = tr$s, u = tr$u)
-    }))
+  color_of <- function(vv) {
+    if (is.null(color_by)) return(NULL)
+    if (color_by %in% colnames(md)) md[vv$cells, color_by] else vv$layers$Ms[color_by, ]
   }
-  if (is.null(point_size)) point_size <- default_point_size(length(v$cells)) * 0.9
+  split <- !is.null(v$samples)
+  parts <- if (split) {
+    lapply(names(v$samples), function(s) phase_frames(v$samples[[s]], genes, color_of(v$samples[[s]]), s))
+  } else {
+    list(phase_frames(v, genes, color_of(v), NULL))
+  }
+  pts <- do.call(rbind, lapply(parts, `[[`, "pts"))
+  if (is.null(pts) || !nrow(pts)) stop("None of the genes are in the velocity data.", call. = FALSE)
+  lines <- do.call(rbind, lapply(parts, `[[`, "lines"))
+  curves <- do.call(rbind, lapply(parts, `[[`, "curves"))
+  genes <- intersect(genes, unique(as.character(pts$gene)))
+  col <- pts$color
+  if (is.character(col) || is.logical(col)) col <- factor(col)
+  if (all(is.na(col))) col <- NULL
+  pts$color <- col
+  lvl <- function(d) {
+    if (is.null(d)) return(NULL)
+    d$gene <- factor(d$gene, levels = genes)
+    if (split) d$sample <- factor(d$sample, levels = names(v$samples))
+    d
+  }
+  pts <- lvl(pts)
+  lines <- lvl(lines)
+  curves <- lvl(curves)
+  if (is.null(point_size)) point_size <- default_point_size(nrow(pts) / length(genes)) * 0.9
   p <- ggplot2::ggplot(pts, ggplot2::aes(x = .data$s, y = .data$u))
   if (is.null(col)) {
     p <- p + ggplot2::geom_point(colour = "grey50", size = point_size, alpha = point_alpha, stroke = 0)
@@ -354,27 +321,68 @@ plot_phase <- function(object, genes, color_by = NULL, ncol = NULL, point_size =
       ggplot2::scale_colour_gradientn(colours = continuous_colors(continuous_palette), name = color_by)
   }
   if (!is.null(lines)) {
-    lines$gene <- factor(lines$gene, levels = genes)
     p <- p + ggplot2::geom_line(data = lines, colour = "#7B2CBF", linetype = "dashed", linewidth = 0.6)
   }
   if (!is.null(curves)) {
-    curves$gene <- factor(curves$gene, levels = genes)
     p <- p + ggplot2::geom_path(data = curves, colour = "#7B2CBF", linewidth = 0.9)
   }
-  p + ggplot2::facet_wrap(~gene, scales = "free", ncol = ncol) +
+  facet <- if (split) {
+    ggplot2::facet_wrap(ggplot2::vars(.data$sample, .data$gene), scales = "free", ncol = ncol %||% length(genes),
+                        labeller = ggplot2::label_wrap_gen(multi_line = FALSE))
+  } else {
+    ggplot2::facet_wrap(~gene, scales = "free", ncol = ncol)
+  }
+  p + facet +
     ggplot2::labs(x = "spliced", y = "unspliced") +
     theme_velo(base_size) +
     ggplot2::theme(axis.text = ggplot2::element_text(size = base_size * 0.7, colour = "grey45"),
                    panel.spacing = ggplot2::unit(1, "lines"))
 }
 
+# Points, steady-state lines and model curves of the phase portraits of one
+# velo object (one sample when the analysis is split).
+phase_frames <- function(v, genes, col, sample) {
+  genes <- intersect(genes, v$genes)
+  if (!length(genes)) return(list())
+  tag <- function(d) {
+    if (!is.null(d) && !is.null(sample)) d$sample <- rep(sample, nrow(d))
+    d
+  }
+  pts <- do.call(rbind, lapply(genes, function(g) {
+    data.frame(gene = g, s = v$layers$Ms[g, ], u = v$layers$Mu[g, ], color = if (is.null(col)) NA else col)
+  }))
+  dyn <- identical(v$params$velocity$mode, "dynamical") && !is.null(v$var$fit_gamma)
+  lines <- do.call(rbind, lapply(genes, function(g) {
+    i <- match(g, v$genes)
+    gamma <- if (dyn) v$var$fit_gamma[i] / v$var$fit_beta[i] else v$var$velocity_gamma[i]
+    off <- if (dyn) 0 else v$var$velocity_offset[i] %||% 0
+    if (is.null(gamma) || length(gamma) == 0 || is.na(gamma)) return(NULL)
+    smax <- max(v$layers$Ms[g, ])
+    data.frame(gene = g, s = c(0, smax), u = off + gamma * c(0, smax))
+  }))
+  curves <- NULL
+  if (!is.null(v$var$fit_alpha)) {
+    curves <- do.call(rbind, lapply(genes, function(g) {
+      i <- match(g, v$genes)
+      if (is.na(v$var$fit_alpha[i])) return(NULL)
+      tmax <- max(v$layers$fit_t[i, ], na.rm = TRUE)
+      tr <- rs_gene_trajectory(v$var$fit_alpha[i], v$var$fit_beta[i], v$var$fit_gamma[i], v$var$fit_t_[i],
+                               v$var$fit_scaling[i], tmax, 300L)
+      data.frame(gene = g, s = tr$s, u = tr$u)
+    }))
+  }
+  list(pts = tag(pts), lines = tag(lines), curves = tag(curves))
+}
+
 #' Expression, velocity and phase portrait of a gene
 #'
 #' @inheritParams plot_velocity_stream
 #' @param gene a gene name.
+#' @param sample sample to show when the analysis is split by sample.
 #' @return a patchwork object (or a list of ggplots if patchwork is missing).
 #' @export
-plot_velocity_gene <- function(object, gene, reduction = "umap", color_by = NULL, base_size = 11) {
+plot_velocity_gene <- function(object, gene, reduction = "umap", color_by = NULL, base_size = 11, sample = NULL) {
+  if (is_split(object)) object <- pick_sample(object, sample)
   v <- get_velo(object)
   if (!gene %in% v$genes) stop("Gene not in velocity data: ", gene, call. = FALSE)
   emb <- get_embedding(object, reduction, v)
@@ -412,10 +420,12 @@ plot_velocity_gene <- function(object, gene, reduction = "umap", color_by = NULL
 #' @param n_bins number of bins along the ordering.
 #' @param palette colours for groups.
 #' @param base_size base font size.
+#' @param sample sample to show when the analysis is split by sample.
 #' @return a ggplot object.
 #' @export
 plot_heatmap <- function(object, genes = NULL, sort_by = "latent_time", group_by = NULL, n_bins = 100,
-                         palette = NULL, base_size = 10) {
+                         palette = NULL, base_size = 10, sample = NULL) {
+  if (is_split(object)) object <- pick_sample(object, sample)
   v <- get_velo(object)
   md <- cell_metadata(object, v)
   if (!sort_by %in% colnames(md)) stop("Unknown `sort_by` column: ", sort_by, call. = FALSE)
@@ -495,3 +505,12 @@ plot_proportions <- function(object, group_by = NULL, base_size = 11) {
 }
 
 utils::globalVariables(".data")
+
+pick_sample <- function(object, sample) {
+  v <- get_velo(object)
+  if (is.null(sample)) {
+    stop(sprintf("The analysis is split by '%s': choose `sample` (one of %s).", v$params$split_by,
+                 paste(names(v$samples), collapse = ", ")), call. = FALSE)
+  }
+  get_sample_velo(object, sample)
+}

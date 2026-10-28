@@ -10,3 +10,4 @@ r-package/src/rust/vendor/
 validation/data/
 validation/out/
 __pycache__/
+Rplots.pdf

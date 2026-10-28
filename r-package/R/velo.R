@@ -46,8 +46,17 @@ new_velo <- function(spliced, unspliced, ambiguous = NULL) {
 #' @export
 print.velo <- function(x, ...) {
   cat(sprintf("<velo> %d cells x %d genes\n", length(x$cells), length(x$genes)))
+  if (!is.null(x$samples)) {
+    cat(sprintf("  split by '%s', analysed separately:\n", x$params$split_by))
+    for (s in names(x$samples)) {
+      sv <- x$samples[[s]]
+      cat(sprintf("    %-12s %5d cells, %4d genes, %s\n", s, length(sv$cells), length(sv$genes),
+                  if (is.null(sv$params$velocity$mode)) "no velocity yet"
+                  else sprintf("%s, %d velocity genes", sv$params$velocity$mode, sum(sv$var$velocity_genes, na.rm = TRUE))))
+    }
+  }
   if (length(x$layers)) cat("  layers:     ", paste(names(x$layers), collapse = ", "), "\n")
-  if (!is.null(x$params$velocity$mode)) {
+  if (!is.null(x$params$velocity$mode) && is.null(x$samples)) {
     cat(sprintf("  velocity:    %s model, %d velocity genes\n", x$params$velocity$mode, sum(x$var$velocity_genes, na.rm = TRUE)))
   }
   if (!is.null(x$graph)) cat(sprintf("  graph:       %d edges\n", length(x$graph$x)))
@@ -120,6 +129,10 @@ cell_metadata <- function(object, v = get_velo(object)) {
   }
   md <- md[match(v$cells, rownames(md)), , drop = FALSE]
   rownames(md) <- v$cells
+  # metadata read from loom / h5ad files fills in columns the host lacks
+  if (!is.null(v$meta)) {
+    for (col in setdiff(colnames(v$meta), colnames(md))) md[[col]] <- v$meta[[col]]
+  }
   for (col in colnames(v$obs)) md[[col]] <- v$obs[[col]]
   md
 }

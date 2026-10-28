@@ -6,7 +6,7 @@
 #'
 #' @param files path(s) to `.loom` files.
 #' @param sample_names optional prefixes added to cell names (one per file),
-#'   useful when merging samples.
+#'   useful when merging samples; also stored in `cell_attrs$sample`.
 #' @param layers layers to read.
 #' @param block_size number of genes read per block.
 #' @return a list with `spliced`, `unspliced`, `ambiguous` (dgCMatrix, genes x
@@ -18,25 +18,39 @@
 #' }
 read_loom <- function(files, sample_names = NULL, layers = c("spliced", "unspliced", "ambiguous"),
                       block_size = NULL) {
-  if (!is.null(sample_names)) stopifnot(length(sample_names) == length(files))
-  parts <- lapply(seq_along(files), function(k) {
-    res <- read_one_loom(files[k], layers, block_size)
+  parts <- lapply(files, read_one_loom, layers = layers, block_size = block_size)
+  combine_parts(parts, layers, sample_names)
+}
+
+# Prefix cell names per sample, record the sample, and bind several files.
+combine_parts <- function(parts, layers, sample_names) {
+  if (!is.null(sample_names)) stopifnot(length(sample_names) == length(parts))
+  layers <- intersect(layers, unique(unlist(lapply(parts, names))))
+  for (k in seq_along(parts)) {
+    res <- parts[[k]]
     if (!is.null(sample_names)) {
       new <- paste0(sample_names[k], "_", colnames(res[[layers[1]]]))
       for (l in layers) if (!is.null(res[[l]])) colnames(res[[l]]) <- new
       rownames(res$cell_attrs) <- new
+      res$cell_attrs$sample <- rep(sample_names[k], length(new))
+      for (r in names(res$reductions)) rownames(res$reductions[[r]]) <- new
     }
-    res
-  })
+    parts[[k]] <- res
+  }
   if (length(parts) == 1) return(parts[[1]])
   genes <- Reduce(intersect, lapply(parts, function(p) rownames(p[[layers[1]]])))
   out <- list()
   for (l in layers) {
-    if (is.null(parts[[1]][[l]])) next
+    if (any(vapply(parts, function(p) is.null(p[[l]]), logical(1)))) next
     out[[l]] <- do.call(cbind, lapply(parts, function(p) p[[l]][genes, , drop = FALSE]))
   }
-  out$cell_attrs <- do.call(rbind, lapply(parts, `[[`, "cell_attrs"))
+  cols <- Reduce(intersect, lapply(parts, function(p) colnames(p$cell_attrs)))
+  out$cell_attrs <- do.call(rbind, lapply(parts, function(p) p$cell_attrs[, cols, drop = FALSE]))
   out$gene_attrs <- parts[[1]]$gene_attrs[match(genes, rownames(parts[[1]][[layers[1]]])), , drop = FALSE]
+  red <- Reduce(intersect, lapply(parts, function(p) names(p$reductions)))
+  if (length(red)) {
+    out$reductions <- lapply(stats::setNames(red, red), function(r) do.call(rbind, lapply(parts, function(p) p$reductions[[r]])))
+  }
   out
 }
 
@@ -145,25 +159,30 @@ match_cells <- function(loom_cells, object_cells) {
 #'
 #' @param object a Seurat or SingleCellExperiment object (or NULL to build a
 #'   stand-alone velo object).
-#' @param loom output of [read_loom()] or path(s) to loom files.
+#' @param loom output of [read_loom()] / [read_h5ad()], or path(s) to `.loom`
+#'   or `.h5ad` files.
 #'   Several samples: `read_loom(c("a.loom", "b.loom"), sample_names = c("a", "b"))`
 #'   with the same prefixes used in the object (e.g. Seurat's `add.cell.ids`).
 #' @param min_match minimum fraction of object cells that must be found in the
 #'   loom file(s).
 #' @param rename optional function mapping loom cell IDs to the object's cell
 #'   names, for naming schemes that cannot be matched automatically.
+#' @param split_by optional cell metadata column (e.g. `"sample"`): analyse
+#'   each sample separately, see [split_velocity()].
 #' @return the object with a `velo` object attached (cells not found in the
 #'   loom are excluded from velocity analysis).
 #' @export
-add_velocity_data <- function(object = NULL, loom, min_match = 0.5, rename = NULL) {
-  if (is.character(loom)) loom <- read_loom(loom)
+add_velocity_data <- function(object = NULL, loom, min_match = 0.5, rename = NULL, split_by = NULL) {
+  if (is.character(loom)) loom <- read_velocity_data(loom)
   if (!is.null(rename)) {
     new <- rename(colnames(loom$spliced))
     for (l in c("spliced", "unspliced", "ambiguous")) if (!is.null(loom[[l]])) colnames(loom[[l]]) <- new
   }
   if (is.null(object)) {
     v <- new_velo(loom$spliced, loom$unspliced, loom$ambiguous)
-    v$obs <- data.frame(row.names = v$cells)
+    v$meta <- loom$cell_attrs[v$cells, , drop = FALSE]
+    v$reductions <- loom$reductions %||% list()
+    if (!is.null(split_by)) v <- split_velocity(v, split_by)
     return(v)
   }
   obj_cells <- if (is_seurat(object)) colnames(object) else if (is_sce(object)) colnames(object) else stop("Unsupported object.")
@@ -185,5 +204,12 @@ add_velocity_data <- function(object = NULL, loom, min_match = 0.5, rename = NUL
     x
   }
   v <- new_velo(pick(loom$spliced), pick(loom$unspliced), pick(loom$ambiguous))
-  set_velo(object, v, sync_obs = FALSE)
+  if (!is.null(loom$cell_attrs)) {
+    meta <- loom$cell_attrs[m[keep], , drop = FALSE]
+    rownames(meta) <- obj_cells[keep]
+    v$meta <- meta
+  }
+  object <- set_velo(object, v, sync_obs = FALSE)
+  if (!is.null(split_by)) object <- split_velocity(object, split_by)
+  object
 }

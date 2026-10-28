@@ -20,6 +20,7 @@ velocity <- function(object, mode = c("stochastic", "deterministic", "dynamical"
                      fit_offset = FALSE, fit_offset2 = FALSE, perc = c(5, 95),
                      min_r2 = 0.01, min_ratio = 0.01, min_likelihood = 0.001,
                      r2_adjusted = FALSE, ...) {
+  if (is_split(object)) return(apply_split(object, velocity, environment(), ...))
   mode <- match.arg(mode)
   v <- get_velo(object)
   if (is.null(v$layers$Ms)) {
@@ -92,6 +93,7 @@ velocity <- function(object, mode = c("stochastic", "deterministic", "dynamical"
 recover_dynamics <- function(object, genes = NULL, n_top_genes = NULL, max_iter = 10,
                              fit_scaling = TRUE, fit_steady_states = TRUE,
                              fit_connected_states = TRUE, projection = TRUE, t_max = 20) {
+  if (is_split(object)) return(apply_split(object, recover_dynamics, environment()))
   v <- get_velo(object)
   if (is.null(v$layers$Ms)) {
     object <- velocity_moments(object)
@@ -191,6 +193,7 @@ dynamical_velocity <- function(v, min_r2 = 0.01, min_likelihood = 0.001) {
 #' @export
 velocity_graph <- function(object, n_recurse_neighbors = 2, sqrt_transform = NULL,
                            max_neighbors = NULL, genes = NULL) {
+  if (is_split(object)) return(apply_split(object, velocity_graph, environment()))
   v <- get_velo(object)
   if (is.null(v$layers$velocity)) {
     object <- velocity(object)
@@ -221,6 +224,7 @@ velocity_graph <- function(object, n_recurse_neighbors = 2, sqrt_transform = NUL
 #' @return signed dgCMatrix of cosine correlations (cells x cells).
 #' @export
 get_velocity_graph <- function(object) {
+  if (is_split(object)) return(collect_split(object, get_velocity_graph, environment()))
   v <- get_velo(object)
   g <- vgraph_args(v)
   triplets_to_sparse(g, g$n, v$cells)
@@ -237,6 +241,7 @@ get_velocity_graph <- function(object) {
 #' @export
 transition_matrix <- function(object, scale = 10, self_transitions = TRUE,
                               use_negative_cosines = FALSE, backward = FALSE) {
+  if (is_split(object)) return(collect_split(object, transition_matrix, environment()))
   v <- get_velo(object)
   g <- vgraph_args(v)
   tr <- rs_transition_matrix(g$i, g$j, g$x, g$n, g$self_transition, scale, self_transitions,
@@ -254,6 +259,7 @@ transition_matrix <- function(object, scale = 10, self_transitions = TRUE,
 #' @return the updated object (`get_velo(x)$velocity_embeddings[[reduction]]`).
 #' @export
 velocity_embedding <- function(object, reduction = "umap", dims = 1:2, scale = 10, autoscale = TRUE) {
+  if (is_split(object)) return(apply_split(object, velocity_embedding, environment()))
   v <- get_velo(object)
   if (is.null(v$graph)) {
     object <- velocity_graph(object)
@@ -278,6 +284,7 @@ velocity_embedding <- function(object, reduction = "umap", dims = 1:2, scale = 1
 #' @return the updated object with new cell metadata columns.
 #' @export
 velocity_confidence <- function(object) {
+  if (is_split(object)) return(apply_split(object, velocity_confidence, environment()))
   v <- get_velo(object)
   if (is.null(v$graph)) {
     object <- velocity_graph(object)

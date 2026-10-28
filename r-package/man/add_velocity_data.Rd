@@ -4,13 +4,20 @@
 \alias{add_velocity_data}
 \title{Attach spliced / unspliced counts to a Seurat or SingleCellExperiment object}
 \usage{
-add_velocity_data(object = NULL, loom, min_match = 0.5, rename = NULL)
+add_velocity_data(
+  object = NULL,
+  loom,
+  min_match = 0.5,
+  rename = NULL,
+  split_by = NULL
+)
 }
 \arguments{
 \item{object}{a Seurat or SingleCellExperiment object (or NULL to build a
 stand-alone velo object).}
 
-\item{loom}{output of \code{\link[=read_loom]{read_loom()}} or path(s) to loom files.
+\item{loom}{output of \code{\link[=read_loom]{read_loom()}} / \code{\link[=read_h5ad]{read_h5ad()}}, or path(s) to \code{.loom}
+or \code{.h5ad} files.
 Several samples: \code{read_loom(c("a.loom", "b.loom"), sample_names = c("a", "b"))}
 with the same prefixes used in the object (e.g. Seurat's \code{add.cell.ids}).}
 
@@ -19,6 +26,9 @@ loom file(s).}
 
 \item{rename}{optional function mapping loom cell IDs to the object's cell
 names, for naming schemes that cannot be matched automatically.}
+
+\item{split_by}{optional cell metadata column (e.g. \code{"sample"}): analyse
+each sample separately, see \code{\link[=split_velocity]{split_velocity()}}.}
 }
 \value{
 the object with a \code{velo} object attached (cells not found in the

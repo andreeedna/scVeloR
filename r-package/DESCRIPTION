@@ -20,10 +20,11 @@ Imports:
     methods,
     stats,
     grid,
-    ggplot2 (>= 3.4.0),
+    ggplot2 (>= 3.5.0),
     rhdf5,
     RSpectra,
-    irlba
+    irlba,
+    tools
 Suggests:
     Seurat,
     SeuratObject,

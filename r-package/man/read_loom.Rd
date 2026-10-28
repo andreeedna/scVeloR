@@ -15,7 +15,7 @@ read_loom(
 \item{files}{path(s) to \code{.loom} files.}
 
 \item{sample_names}{optional prefixes added to cell names (one per file),
-useful when merging samples.}
+useful when merging samples; also stored in \code{cell_attrs$sample}.}
 
 \item{layers}{layers to read.}
 

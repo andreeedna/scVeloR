@@ -18,7 +18,9 @@ plot_velocity_embedding(
   continuous_palette = "viridis",
   legend = "on data",
   title = NULL,
-  base_size = 11
+  base_size = 11,
+  split_by = NULL,
+  ncol = NULL
 )
 }
 \arguments{
@@ -29,14 +31,14 @@ plot_velocity_embedding(
 \item{color_by}{metadata column or gene used to colour cells (default:
 clusters if found).}
 
-\item{n_arrows}{maximum number of cells with an arrow (random subset).}
+\item{n_arrows}{maximum number of cells with an arrow per panel (random subset).}
 
 \item{arrow_length}{arrow length multiplier; \code{NULL} scales the longest
 arrows to about 4\% of the embedding width.}
 
 \item{arrow_size}{arrow head size multiplier.}
 
-\item{arrow_color}{arrow colour (\code{NULL}: same colour as the cell).}
+\item{arrow_color}{arrow colour.}
 
 \item{point_size, point_alpha}{cell point size and opacity.}
 
@@ -50,6 +52,12 @@ arrows to about 4\% of the embedding width.}
 \item{title}{plot title.}
 
 \item{base_size}{base font size.}
+
+\item{split_by}{cell metadata column to facet by (e.g. \code{"sample"}); the
+flow is computed separately in each panel. Defaults to the column the
+analysis was split by (\code{\link[=split_velocity]{split_velocity()}}), if any.}
+
+\item{ncol}{number of facet columns.}
 }
 \value{
 a ggplot object.

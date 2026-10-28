@@ -92,6 +92,58 @@ For a SingleCellExperiment use the same functions (results go to
   <img src="docs/figures/gene_panel.png" width="96%">
 </p>
 
+### Input files: loom or h5ad
+
+Counts can come from velocyto `.loom` files or from AnnData `.h5ad` files
+(scVelo / scanpy, any anndata version, read without Python). `.h5ad` files
+also bring their `obs` metadata and `obsm` embeddings (e.g. `X_umap`).
+
+```r
+seu <- run_velocity(seu, "velocyto/sample1.loom")
+seu <- run_velocity(seu, "adata_with_spliced_unspliced.h5ad")
+dat <- read_velocity_data(c("s1.loom", "s2.h5ad"), sample_names = c("s1", "s2"))
+```
+
+### Seurat-style plots
+
+`VelocityDimPlot()` and `VelocityFeaturePlot()` are Seurat's `DimPlot()` /
+`FeaturePlot()` with the velocity field on top: every Seurat argument works
+(`group.by`, `split.by`, `label`, `cols`, `alpha`, `order`, `ncol`, ...), and
+with `split.by` the flow is computed separately in each panel.
+`add_velocity()` adds the flow to any plot you already have.
+
+```r
+VelocityDimPlot(seu, group.by = "seurat_clusters", label = TRUE)
+VelocityDimPlot(seu, split.by = "sample", velocity = "grid")          # "stream", "grid", "arrows"
+VelocityFeaturePlot(seu, c("latent_time", "Pcsk2"), split.by = "sample",
+                    velocity.args = list(density = 1.5))
+DimPlot(seu, group.by = "celltype") |> add_velocity(seu, type = "arrows")
+```
+
+### One analysis per sample
+
+With `split_by` every step runs independently on each sample (own genes,
+neighbours, kinetic fits, velocity graph, latent time); per-cell results are
+recombined on the shared embedding and the plots are split by sample
+automatically. The functions are the same as for a joint analysis:
+
+```r
+seu <- run_velocity(seu, loom, mode = "dynamical", split_by = "sample")
+# or step by step: add_velocity_data(seu, loom, split_by = "sample") then the usual steps
+VelocityDimPlot(seu, group.by = "seurat_clusters")      # one panel per sample
+plot_phase(seu, c("Pcsk2", "Cpe"))                       # rows = samples
+plot_heatmap(seu, sample = "s1")                         # per-sample views
+get_sample_velo(seu, "s1")                               # the full result of one sample
+```
+
+Use a joint analysis when samples are replicates of the same process, and a
+per-sample one when they differ in condition, batch or chemistry and you do
+not want one sample's kinetics to shape another's.
+
+<p align="center">
+  <img src="docs/figures/seurat_split_dimplot.png" width="96%">
+</p>
+
 ## Validation
 
 `validation/reference_scvelo.py` runs scVelo 0.2.5 on the pancreas

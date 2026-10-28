@@ -16,6 +16,7 @@
 #' @export
 velocity_filter_normalize <- function(object, min_shared_counts = 20, n_top_genes = 2000,
                                       genes = NULL, retain_genes = NULL) {
+  if (is_split(object)) return(apply_split(object, velocity_filter_normalize, environment()))
   v <- get_velo(object)
   if (!is.null(v$params$normalize)) {
     message("Counts already normalised; skipping.")
@@ -116,6 +117,7 @@ dispersion_hvg <- function(x, n_top_genes, n_bins = 20) {
 #' @return the updated object.
 #' @export
 velocity_moments <- function(object, n_neighbors = 30, n_pcs = 30, reduction = "auto", knn = NULL) {
+  if (is_split(object)) return(apply_split(object, velocity_moments, environment()))
   v <- get_velo(object)
   if (is.null(v$params$normalize)) {
     object <- velocity_filter_normalize(object)

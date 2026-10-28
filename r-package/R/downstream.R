@@ -9,6 +9,7 @@
 #' @return the updated object with `root_cells` and `end_points` in the cell metadata.
 #' @export
 terminal_states <- function(object, eps = 1e-3, n_eig = 10) {
+  if (is_split(object)) return(apply_split(object, terminal_states, environment()))
   v <- get_velo(object)
   if (is.null(v$graph)) {
     object <- velocity_graph(object)
@@ -74,6 +75,7 @@ scale01 <- function(x) {
 #' @return the updated object with `velocity_pseudotime` in the cell metadata.
 #' @export
 velocity_pseudotime <- function(object, n_dcs = 10, root = NULL, end = NULL) {
+  if (is_split(object)) return(apply_split(object, velocity_pseudotime, environment()))
   v <- get_velo(object)
   if (is.null(v$obs$root_cells) || !identical(v$params$terminal_states$graph_mode, v$params$velocity$mode)) {
     object <- terminal_states(object)
@@ -125,6 +127,7 @@ velocity_pseudotime <- function(object, n_dcs = 10, root = NULL, end = NULL) {
 #' @export
 latent_time <- function(object, min_likelihood = 0.1, min_confidence = 0.75,
                         root_cells = NULL, end_points = NULL, t_max = NULL) {
+  if (is_split(object)) return(apply_split(object, latent_time, environment()))
   v <- get_velo(object)
   if (is.null(v$layers$fit_t)) stop("Run `velocity(mode = \"dynamical\")` first.", call. = FALSE)
   if (is.null(v$graph)) {
@@ -181,6 +184,10 @@ latent_time <- function(object, min_likelihood = 0.1, min_confidence = 0.75,
 #' @export
 rank_velocity_genes <- function(object, group_by, n_genes = 10, min_r2 = 0.1, min_corr = 0.1,
                                 min_likelihood = 0.1) {
+  if (is_split(object)) {
+    res <- collect_split(object, rank_velocity_genes, environment())
+    return(do.call(rbind, lapply(names(res), function(s) if (!is.null(res[[s]])) cbind(sample = s, res[[s]]))))
+  }
   v <- get_velo(object)
   md <- cell_metadata(object, v)
   if (!group_by %in% colnames(md)) stop("Unknown `group_by` column: ", group_by, call. = FALSE)
@@ -221,6 +228,7 @@ rank_velocity_genes <- function(object, group_by, n_genes = 10, min_r2 = 0.1, mi
 #' @return character vector of gene names.
 #' @export
 top_likelihood_genes <- function(object, n = 10) {
+  if (is_split(object)) return(collect_split(object, top_likelihood_genes, environment()))
   v <- get_velo(object)
   if (is.null(v$var$fit_likelihood)) stop("Run the dynamical model first.", call. = FALSE)
   l <- v$var$fit_likelihood
@@ -242,14 +250,17 @@ top_likelihood_genes <- function(object, n = 10) {
 #' @param reduction embedding for the projection (e.g. `"umap"`).
 #' @param n_top_genes,min_shared_counts,n_neighbors,n_pcs preprocessing settings.
 #' @param genes optional genes to use instead of dispersion-based selection.
+#' @param split_by optional cell metadata column (e.g. `"sample"`): run the
+#'   whole workflow separately for each sample (see [split_velocity()]).
 #' @param ... passed to [recover_dynamics()].
 #' @return the updated object.
 #' @export
 run_velocity <- function(object = NULL, loom = NULL, mode = c("stochastic", "dynamical", "deterministic"),
                          reduction = "umap", n_top_genes = 2000, min_shared_counts = 20,
-                         n_neighbors = 30, n_pcs = 30, genes = NULL, ...) {
+                         n_neighbors = 30, n_pcs = 30, genes = NULL, split_by = NULL, ...) {
   mode <- match.arg(mode)
   if (!is.null(loom)) object <- add_velocity_data(object, loom)
+  if (!is.null(split_by)) object <- split_velocity(object, split_by)
   object <- velocity_filter_normalize(object, min_shared_counts = min_shared_counts,
                                       n_top_genes = n_top_genes, genes = genes)
   object <- velocity_moments(object, n_neighbors = n_neighbors, n_pcs = n_pcs)
@@ -257,7 +268,7 @@ run_velocity <- function(object = NULL, loom = NULL, mode = c("stochastic", "dyn
   object <- velocity_graph(object)
   v <- get_velo(object)
   has_emb <- tryCatch({ get_embedding(object, reduction, v); TRUE }, error = function(e) FALSE)
-  if (!has_emb && reduction == "umap" && requireNamespace("uwot", quietly = TRUE)) {
+  if (!has_emb && reduction == "umap" && !is_split(object) && requireNamespace("uwot", quietly = TRUE)) {
     pcs <- v$reductions$pca %||% get_embedding(object, "pca", v)
     v$reductions$umap <- uwot::umap(pcs, n_neighbors = n_neighbors, min_dist = 0.5)
     rownames(v$reductions$umap) <- v$cells

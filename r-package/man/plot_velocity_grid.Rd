@@ -20,7 +20,9 @@ plot_velocity_grid(
   continuous_palette = "viridis",
   legend = "on data",
   title = NULL,
-  base_size = 11
+  base_size = 11,
+  split_by = NULL,
+  ncol = NULL
 )
 }
 \arguments{
@@ -56,6 +58,12 @@ the longest ones span about one grid cell.}
 \item{title}{plot title.}
 
 \item{base_size}{base font size.}
+
+\item{split_by}{cell metadata column to facet by (e.g. \code{"sample"}); the
+flow is computed separately in each panel. Defaults to the column the
+analysis was split by (\code{\link[=split_velocity]{split_velocity()}}), if any.}
+
+\item{ncol}{number of facet columns.}
 }
 \value{
 a ggplot object.

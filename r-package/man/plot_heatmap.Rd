@@ -11,7 +11,8 @@ plot_heatmap(
   group_by = NULL,
   n_bins = 100,
   palette = NULL,
-  base_size = 10
+  base_size = 10,
+  sample = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ plot_heatmap(
 \item{palette}{colours for groups.}
 
 \item{base_size}{base font size.}
+
+\item{sample}{sample to show when the analysis is split by sample.}
 }
 \value{
 a ggplot object.

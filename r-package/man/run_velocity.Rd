@@ -14,6 +14,7 @@ run_velocity(
   n_neighbors = 30,
   n_pcs = 30,
   genes = NULL,
+  split_by = NULL,
   ...
 )
 }
@@ -31,6 +32,9 @@ velocity data was already attached.}
 \item{n_top_genes, min_shared_counts, n_neighbors, n_pcs}{preprocessing settings.}
 
 \item{genes}{optional genes to use instead of dispersion-based selection.}
+
+\item{split_by}{optional cell metadata column (e.g. \code{"sample"}): run the
+whole workflow separately for each sample (see \code{\link[=split_velocity]{split_velocity()}}).}
 
 \item{...}{passed to \code{\link[=recover_dynamics]{recover_dynamics()}}.}
 }
