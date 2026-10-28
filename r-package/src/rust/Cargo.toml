@@ -1,12 +1,12 @@
 [package]
-name = "scvelo2"
+name = "scvelor"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [lib]
 crate-type = ["staticlib"]
-name = "scvelo2"
+name = "scvelor"
 
 [dependencies]
 extendr-api = "0.9"

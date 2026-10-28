@@ -1,7 +1,7 @@
 # Low-level bindings to the Rust core (src/rust). Not exported; see R/core.R.
 # nolint start
 
-#' @useDynLib scVelo2, .registration = TRUE
+#' @useDynLib scVeloR, .registration = TRUE
 #' @import Matrix
 #' @importFrom methods as is new
 NULL

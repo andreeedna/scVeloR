@@ -1,7 +1,7 @@
 # h5ad input, per-sample analysis and Seurat-style velocity plots.
 # Rscript validation/r_split_seurat.R  (after validation/data/pancreas_new.h5ad exists)
 suppressPackageStartupMessages({
-  library(scVelo2)
+  library(scVeloR)
   library(Seurat)
   library(ggplot2)
 })

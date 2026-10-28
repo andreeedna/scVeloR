@@ -1,4 +1,4 @@
-//! velocore: the numerical core of scVelo2.
+//! velocore: the numerical core of scVeloR.
 //!
 //! A from-scratch Rust implementation of the RNA velocity workflow popularised
 //! by scVelo (Bergen et al., 2020): kNN moments, steady-state / stochastic /

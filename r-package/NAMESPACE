@@ -45,4 +45,4 @@ importFrom(methods,
   is,
   new
 )
-useDynLib(scVelo2, .registration = TRUE)
+useDynLib(scVeloR, .registration = TRUE)

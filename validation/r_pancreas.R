@@ -1,11 +1,11 @@
 # End-to-end test of the R package on the pancreas data, Seurat workflow.
 # Rscript validation/r_pancreas.R
 suppressPackageStartupMessages({
-  library(scVelo2)
+  library(scVeloR)
   library(Seurat)
   library(ggplot2)
 })
-options(scVelo2.threads = 0)
+options(scVeloR.threads = 0)
 dd <- "validation/data"
 ref <- "validation/out/pancreas"
 out <- "validation/out/figures"

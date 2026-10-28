@@ -1,8 +1,8 @@
-Package: scVelo2
+Package: scVeloR
 Type: Package
 Title: Fast RNA Velocity Analysis for Seurat and SingleCellExperiment
 Version: 0.1.0
-Authors@R: person("scVelo2", "authors", role = c("aut", "cre"), email = "tsneland@gmail.com")
+Authors@R: person("scVeloR", "authors", role = c("aut", "cre"), email = "tsneland@gmail.com")
 Description: RNA velocity analysis of single-cell data in R, powered by a
     multi-threaded Rust core. Implements the steady-state, stochastic and
     dynamical models of splicing kinetics, velocity graphs, embedding
@@ -14,7 +14,7 @@ License: BSD_3_clause + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.75
-Depends: R (>= 4.2)
+Depends: R (>= 4.4)
 Imports:
     Matrix,
     methods,

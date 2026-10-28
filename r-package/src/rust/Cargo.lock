@@ -138,7 +138,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "scvelo2"
+name = "scvelor"
 version = "0.1.0"
 dependencies = [
  "extendr-api",

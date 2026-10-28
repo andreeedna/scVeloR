@@ -537,7 +537,7 @@ fn rs_gene_trajectory(alpha: f64, beta: f64, gamma: f64, t_: f64, scaling: f64, 
 }
 
 extendr_module! {
-    mod scVelo2;
+    mod scVeloR;
     fn rs_knn;
     fn rs_connectivities;
     fn rs_moments;

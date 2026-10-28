@@ -1,9 +1,9 @@
 #' The velocity data object
 #'
-#' All scVelo2 results live in a light-weight `velo` object (an S3 list). When
+#' All scVeloR results live in a light-weight `velo` object (an S3 list). When
 #' you work with Seurat or SingleCellExperiment objects you normally never touch
 #' it: every function accepts the Seurat / SCE object, reads the `velo` object
-#' stored inside it (`seu@misc$scVelo2` or `S4Vectors::metadata(sce)$scVelo2`),
+#' stored inside it (`seu@misc$scVeloR` or `S4Vectors::metadata(sce)$scVeloR`),
 #' updates it and writes cell-level results (latent time, confidence, ...) to
 #' the object's cell metadata.
 #'
@@ -76,9 +76,11 @@ is_sce <- function(x) methods::is(x, "SingleCellExperiment")
 get_velo <- function(object) {
   if (inherits(object, "velo")) return(object)
   v <- if (is_seurat(object)) {
-    object@misc$scVelo2
+    # scVelo2: objects saved before the rename
+    object@misc$scVeloR %||% object@misc$scVelo2
   } else if (is_sce(object)) {
-    S4Vectors::metadata(object)$scVelo2
+    md <- S4Vectors::metadata(object)
+    md$scVeloR %||% md$scVelo2
   } else {
     stop("`object` must be a Seurat, SingleCellExperiment or velo object.", call. = FALSE)
   }
@@ -97,7 +99,8 @@ get_velo <- function(object) {
 set_velo <- function(object, v, sync_obs = TRUE) {
   if (inherits(object, "velo")) return(v)
   if (is_seurat(object)) {
-    object@misc$scVelo2 <- v
+    object@misc$scVeloR <- v
+    object@misc$scVelo2 <- NULL
     if (sync_obs && ncol(v$obs)) {
       md <- object@meta.data
       idx <- match(rownames(md), v$cells)
@@ -106,7 +109,8 @@ set_velo <- function(object, v, sync_obs = TRUE) {
     }
   } else if (is_sce(object)) {
     md <- S4Vectors::metadata(object)
-    md$scVelo2 <- v
+    md$scVeloR <- v
+    md$scVelo2 <- NULL
     S4Vectors::metadata(object) <- md
     if (sync_obs && ncol(v$obs)) {
       cd <- SummarizedExperiment::colData(object)
@@ -169,7 +173,7 @@ available_reductions <- function(object, v) {
 }
 
 default_threads <- function() {
-  n <- getOption("scVelo2.threads", 0L)
+  n <- getOption("scVeloR.threads", 0L)
   as.integer(n)
 }
 

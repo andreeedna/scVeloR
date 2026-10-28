@@ -4,10 +4,10 @@
 \alias{velo}
 \title{The velocity data object}
 \description{
-All scVelo2 results live in a light-weight \code{velo} object (an S3 list). When
+All scVeloR results live in a light-weight \code{velo} object (an S3 list). When
 you work with Seurat or SingleCellExperiment objects you normally never touch
 it: every function accepts the Seurat / SCE object, reads the \code{velo} object
-stored inside it (\code{seu@misc$scVelo2} or \code{S4Vectors::metadata(sce)$scVelo2}),
+stored inside it (\code{seu@misc$scVeloR} or \code{S4Vectors::metadata(sce)$scVeloR}),
 updates it and writes cell-level results (latent time, confidence, ...) to
 the object's cell metadata.
 }

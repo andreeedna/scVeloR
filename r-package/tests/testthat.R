@@ -1,4 +1,4 @@
 library(testthat)
-library(scVelo2)
+library(scVeloR)
 
-test_check("scVelo2")
+test_check("scVeloR")

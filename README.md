@@ -1,4 +1,4 @@
-# scVelo2
+# scVeloR
 
 RNA velocity for single-cell data with a fast Rust core and native R support
 (Seurat / SingleCellExperiment). It re-implements the scVelo workflow
@@ -41,7 +41,7 @@ devtools::install("r-package", upgrade = FALSE)
 ## Quick start with Seurat
 
 ```r
-library(scVelo2)
+library(scVeloR)
 library(Seurat)
 
 loom <- read_loom("velocyto/sample1.loom")   # spliced / unspliced / ambiguous
@@ -74,15 +74,15 @@ seu <- velocity_pseudotime(seu)
 seu <- latent_time(seu)                                      # dynamical model only
 ```
 
-Results are stored inside the object (`seu@misc$scVelo2`, accessible with
+Results are stored inside the object (`seu@misc$scVeloR`, accessible with
 `get_velo(seu)`); per-cell results (`latent_time`, `velocity_pseudotime`,
 `velocity_confidence`, `root_cells`, `end_points`, ...) are added to the
 Seurat metadata. Several samples: `read_loom(c("s1.loom", "s2.loom"),
 sample_names = c("s1", "s2"))`. The number of threads is controlled with
-`options(scVelo2.threads = 8)` (default: all cores).
+`options(scVeloR.threads = 8)` (default: all cores).
 
 For a SingleCellExperiment use the same functions (results go to
-`metadata(sce)$scVelo2` and `colData(sce)`); without any object,
+`metadata(sce)$scVeloR` and `colData(sce)`); without any object,
 `add_velocity_data(NULL, loom)` gives a stand-alone analysis.
 
 <p align="center">
@@ -149,7 +149,7 @@ not want one sample's kinetics to shape another's.
 `validation/reference_scvelo.py` runs scVelo 0.2.5 on the pancreas
 endocrinogenesis data and exports every intermediate result;
 `velocore/examples/validate.rs` and `validation/r_pancreas.R` compare them with
-scVelo2 on the same inputs (same genes, same neighbour graph):
+scVeloR on the same inputs (same genes, same neighbour graph):
 
 | step | agreement with scVelo |
 |---|---|
@@ -166,7 +166,7 @@ scVelo2 on the same inputs (same genes, same neighbour graph):
 
 A note on the dynamical model: scVelo fits it on **float32** moments, and its
 EM is very sensitive to rounding — scVelo on float32 vs scVelo on float64
-moments agree only to correlation 0.976 (γ) / 0.944 (switching time). scVelo2
+moments agree only to correlation 0.976 (γ) / 0.944 (switching time). scVeloR
 works in float64 and matches scVelo-on-float64 almost exactly.
 
 While validating we also hit two crashes of scVelo 0.2.5 with current numpy
@@ -175,7 +175,7 @@ in `validation/reference_scvelo.py`.
 
 ## Timing (pancreas, 3 696 cells × 2 000 genes, 16 threads)
 
-| step | scVelo 0.2.5 | scVelo2 |
+| step | scVelo 0.2.5 | scVeloR |
 |---|---|---|
 | neighbours + moments | 4.9 s | 0.2 s |
 | velocity graph | 4.2 s | 0.4 s |
@@ -192,7 +192,7 @@ in `validation/reference_scvelo.py`.
 
 ```
 velocore/          Rust core (pure numerics, unit tests, validation examples)
-r-package/         R package scVelo2 (extendr bindings + R API + ggplot2)
+r-package/         R package scVeloR (extendr bindings + R API + ggplot2)
 validation/        reference scripts and comparisons against scVelo
 ```
 
@@ -205,6 +205,6 @@ validation/        reference scripts and comparisons against scVelo
 
 ## Credits and license
 
-scVelo2 re-implements methods of [scVelo](https://github.com/theislab/scvelo)
+scVeloR re-implements methods of [scVelo](https://github.com/theislab/scvelo)
 (Bergen, Lange, Peidli, Wolf & Theis, 2020) and velocyto (La Manno et al.,
 2018); please cite them. BSD 3-Clause license (see `LICENSE`).
