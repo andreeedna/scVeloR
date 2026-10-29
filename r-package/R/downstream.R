@@ -38,8 +38,7 @@ terminal_states <- function(object, eps = 1e-3, n_eig = 10) {
 # 2-98 percentile range and max-normalised (scvelo.tl.terminal_states.eigs)
 stationary_vectors <- function(a, eps = 1e-3, k = 10) {
   k <- min(k, nrow(a) - 2)
-  set.seed(0)
-  e <- RSpectra::eigs(a, k = k, which = "LR", opts = list(maxitr = 5000, tol = 1e-10))
+  e <- with_seed(0, RSpectra::eigs(a, k = k, which = "LR", opts = list(maxitr = 5000, tol = 1e-10)))
   ord <- order(Re(e$values), decreasing = TRUE)
   vals <- Re(e$values)[ord]
   vecs <- Re(e$vectors)[, ord, drop = FALSE]

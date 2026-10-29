@@ -58,19 +58,22 @@ fn triplets_robj(m: &Csr) -> Robj {
     )
 }
 
-fn set_threads(n_threads: i32) {
+// A pool per call: rayon's global pool can be sized only once per R session.
+fn with_threads<T: Send>(n_threads: i32, f: impl FnOnce() -> T + Send) -> T {
     if n_threads > 0 {
-        let _ = rayon::ThreadPoolBuilder::new().num_threads(n_threads as usize).build_global();
+        if let Ok(pool) = rayon::ThreadPoolBuilder::new().num_threads(n_threads as usize).build() {
+            return pool.install(f);
+        }
     }
+    f()
 }
 
 /// Exact kNN on the rows of a cells x dims matrix (passed as t(X)).
 /// @noRd
 #[extendr]
 fn rs_knn(x: &[f64], n: i32, d: i32, k: i32, n_threads: i32) -> Robj {
-    set_threads(n_threads);
     let m = RowMat::from_vec(n as usize, d as usize, x.to_vec());
-    let res = neighbors::knn(&m, k as usize);
+    let res = with_threads(n_threads, || neighbors::knn(&m, k as usize));
     named(
         &["idx", "dist", "k"],
         vec![
@@ -148,7 +151,6 @@ fn rs_velocity_steady(
     highly_variable: &[i32],
     n_threads: i32,
 ) -> Robj {
-    set_threads(n_threads);
     let ms = dense(ms, n, g);
     let mu = dense(mu, n, g);
     let opts = SteadyStateOptions {
@@ -161,13 +163,15 @@ fn rs_velocity_steady(
         constrain_ratio: None,
     };
     let hv: Option<Vec<bool>> = if highly_variable.len() == g as usize { Some(highly_variable.iter().map(|&v| v != 0).collect()) } else { None };
-    let res = if stochastic {
-        let mss = dense(mss, n, g);
-        let mus = dense(mus, n, g);
-        velocity::stochastic(&ms, &mu, &mss, &mus, hv.as_deref(), &opts)
-    } else {
-        velocity::deterministic(&ms, &mu, hv.as_deref(), &opts)
-    };
+    let res = with_threads(n_threads, || {
+        if stochastic {
+            let mss = dense(mss, n, g);
+            let mus = dense(mus, n, g);
+            velocity::stochastic(&ms, &mu, &mss, &mus, hv.as_deref(), &opts)
+        } else {
+            velocity::deterministic(&ms, &mu, hv.as_deref(), &opts)
+        }
+    });
     let var_vel = res.variance_velocity.map(|m| m.data).unwrap_or_default();
     named(
         &["velocity", "variance_velocity", "gamma", "offset", "offset2", "r2", "qreg_ratio", "velocity_genes", "low_signal_r2"],
@@ -203,7 +207,6 @@ fn rs_velocity_graph(
     seed: i32,
     n_threads: i32,
 ) -> Robj {
-    set_threads(n_threads);
     let knn = knn_from(idx, dist, n, k);
     let opts = VelocityGraphOptions {
         n_recurse_neighbors: n_recurse as usize,
@@ -211,7 +214,7 @@ fn rs_velocity_graph(
         max_neighs: if max_neighs > 0 { Some(max_neighs as usize) } else { None },
         seed: seed as u64,
     };
-    let vg = graph::velocity_graph(&dense(x, n, g), &dense(v, n, g), &knn, &opts);
+    let vg = with_threads(n_threads, || graph::velocity_graph(&dense(x, n, g), &dense(v, n, g), &knn, &opts));
     named(&["graph", "self_transition"], vec![triplets_robj(&vg.graph), vg.self_transition.into_robj()])
 }
 
@@ -387,11 +390,11 @@ fn rs_recover_dynamics(
     t_max: f64,
     n_threads: i32,
 ) -> Robj {
-    set_threads(n_threads);
     let knn = knn_from(idx, dist, n, k);
     let conn = neighbors::moment_connectivities(&knn);
     let opts = DynamicsOptions { max_iter: max_iter as usize, fit_scaling, fit_steady_states, fit_connected_states, projection, perc: 99.0 };
-    let fit = dynamics::recover_dynamics(&dense(mu, n, g), &dense(ms, n, g), Some(&conn), &opts, if t_max.is_nan() { None } else { Some(t_max) });
+    let t_max = if t_max.is_nan() { None } else { Some(t_max) };
+    let fit = with_threads(n_threads, || dynamics::recover_dynamics(&dense(mu, n, g), &dense(ms, n, g), Some(&conn), &opts, t_max));
     let gs = &fit.genes;
     let col = |f: &dyn Fn(&GeneDynamics) -> f64| -> Robj { gs.iter().map(f).collect::<Vec<f64>>().into_robj() };
     named(

@@ -38,6 +38,9 @@ combine_parts <- function(parts, layers, sample_names) {
     parts[[k]] <- res
   }
   if (length(parts) == 1) return(parts[[1]])
+  if (anyDuplicated(unlist(lapply(parts, function(p) colnames(p[[layers[1]]]))))) {
+    stop("The same cell names occur in several files: pass `sample_names` (one per file).", call. = FALSE)
+  }
   genes <- Reduce(intersect, lapply(parts, function(p) rownames(p[[layers[1]]])))
   out <- list()
   for (l in layers) {
@@ -127,23 +130,33 @@ match_cells <- function(loom_cells, object_cells) {
   }
   # sample labels: the name without the barcode, split into tokens; tokens
   # shared by every name (e.g. the GEM suffix "1", the trailing "x") carry no
-  # information and are dropped
-  tokens <- function(x) {
+  # information and are dropped; only the names in `need` get their tokens
+  tokens <- function(x, need) {
+    out <- vector("list", length(x))
+    if (!length(need)) return(out)
     tk <- strsplit(sub(pat, " ", x), "[^A-Za-z0-9]+")
-    tk <- lapply(tk, function(t) unique(t[nzchar(t)]))
-    common <- Reduce(intersect, tk)
-    lapply(tk, setdiff, common)
+    flat <- unlist(tk)
+    ids <- rep(seq_along(tk), lengths(tk))
+    first <- unique(tk[[1]][nzchar(tk[[1]])])
+    common <- first[vapply(first, function(t) length(unique(ids[flat == t])) == length(x), logical(1))]
+    out[need] <- lapply(tk[need], function(t) setdiff(t[nzchar(t)], common))
+    out
   }
   lc <- core(loom_cells)
   oc <- core(object_cells)
-  lt <- tokens(loom_cells)
-  ot <- tokens(object_cells)
-  by_bc <- split(seq_along(lc), lc)
-  todo <- which(is.na(m) & !is.na(oc))
+  # barcodes found once on each side (the usual case) are matched in one go
+  once <- function(x) !is.na(x) & !(duplicated(x) | duplicated(x, fromLast = TRUE))
+  oc_once <- once(oc)
+  direct <- is.na(m) & oc_once
+  m[direct] <- match(oc[direct], ifelse(once(lc), lc, NA), incomparables = NA)
+  # the rest share a barcode across samples: sample labels decide
+  todo <- which(is.na(m) & !is.na(oc) & oc %in% lc)
+  by_bc <- split(seq_along(lc), lc)[unique(oc[todo])]
+  lt <- tokens(loom_cells, unlist(by_bc))
+  ot <- tokens(object_cells, todo)
   for (i in todo) {
     cand <- by_bc[[oc[i]]]
-    if (is.null(cand)) next
-    if (length(cand) > 1 || sum(oc == oc[i], na.rm = TRUE) > 1) {
+    if (length(cand) > 1 || !oc_once[i]) {
       score <- vapply(cand, function(j) length(intersect(lt[[j]], ot[[i]])), numeric(1))
       best <- cand[score == max(score)]
       cand <- if (max(score) > 0 && length(best) == 1) best else integer(0)

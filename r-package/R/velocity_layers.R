@@ -44,8 +44,7 @@ velocity_field_layers <- function(df, type = "stream", by = NULL, args = list(),
       list(arrows = tag(data.frame(x = pts[, 1], y = pts[, 2], vx = vel[, 1], vy = vel[, 2]), g),
            step = mean(c(diff(grid$xs[1:2]), diff(grid$ys[1:2]))))
     } else {
-      set.seed(1)
-      idx <- if (nrow(g) > a$n_arrows) sort(sample(nrow(g), a$n_arrows)) else seq_len(nrow(g))
+      idx <- if (nrow(g) > a$n_arrows) sort(with_seed(1, sample(nrow(g), a$n_arrows))) else seq_len(nrow(g))
       list(arrows = tag(data.frame(x = g$x[idx], y = g$y[idx], vx = g$vx[idx], vy = g$vy[idx]), g),
            width = diff(range(g$x)))
     }
@@ -96,6 +95,17 @@ velocity_frame <- function(object, v, reduction, dims = 1:2) {
   emb <- get_embedding(object, reduction, v)[, dims, drop = FALSE]
   ve <- v$velocity_embeddings[[reduction]]
   if (is.null(ve)) stop(sprintf("No velocities projected on '%s'. Run `velocity_embedding(object, \"%s\")`.", reduction, reduction), call. = FALSE)
-  if (ncol(ve) < max(dims)) stop("Velocity embedding has fewer dimensions than `dims`.", call. = FALSE)
-  data.frame(x = emb[, 1], y = emb[, 2], vx = ve[, dims[1]], vy = ve[, dims[2]], row.names = v$cells)
+  if (is.null(colnames(emb)) || is.null(colnames(ve))) {
+    # unnamed embedding (some SCE reducedDims): projection used dims 1:2
+    if (ncol(ve) < max(dims)) stop("Velocity embedding has fewer dimensions than `dims`.", call. = FALSE)
+    ve <- ve[, dims, drop = FALSE]
+  } else {
+    miss <- setdiff(colnames(emb), colnames(ve))
+    if (length(miss)) {
+      stop(sprintf("Velocities were not projected on %s. Run `velocity_embedding(object, \"%s\", dims = c(%s))`.",
+                   paste(miss, collapse = ", "), reduction, paste(dims, collapse = ", ")), call. = FALSE)
+    }
+    ve <- ve[, colnames(emb), drop = FALSE]
+  }
+  data.frame(x = emb[, 1], y = emb[, 2], vx = ve[, 1], vy = ve[, 2], row.names = v$cells)
 }

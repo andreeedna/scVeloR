@@ -201,3 +201,11 @@ vgraph_args <- function(v) {
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
+
+# Evaluate `expr` with a fixed seed, leaving the user's random state untouched.
+with_seed <- function(seed, expr) {
+  old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv())
+  on.exit(if (is.null(old)) rm(".Random.seed", envir = globalenv()) else assign(".Random.seed", old, envir = globalenv()))
+  set.seed(seed)
+  expr
+}
