@@ -14,7 +14,7 @@ License: BSD_3_clause + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.75
-Depends: R (>= 4.4)
+Depends: R (>= 4.2)
 Imports:
     Matrix,
     methods,
